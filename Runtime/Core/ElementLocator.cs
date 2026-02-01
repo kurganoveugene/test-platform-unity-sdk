@@ -151,16 +151,26 @@ namespace TestPlatform.SDK
                 var canvas = element.GetComponentInParent<Canvas>();
                 if (canvas != null)
                 {
+                    // Get the corners of the RectTransform in world space
+                    Vector3[] corners = new Vector3[4];
+                    rectTransform.GetWorldCorners(corners);
+
+                    // Calculate center
+                    Vector3 center = (corners[0] + corners[2]) / 2f;
+
                     if (canvas.renderMode == RenderMode.ScreenSpaceOverlay)
                     {
-                        return rectTransform.position;
+                        // For overlay, world position IS screen position
+                        return new Vector2(center.x, center.y);
                     }
                     else
                     {
+                        // For Camera/WorldSpace, convert to screen position
                         var camera = canvas.worldCamera ?? Camera.main;
                         if (camera != null)
                         {
-                            return RectTransformUtility.WorldToScreenPoint(camera, rectTransform.position);
+                            Vector3 screenPos = camera.WorldToScreenPoint(center);
+                            return new Vector2(screenPos.x, screenPos.y);
                         }
                     }
                 }
@@ -170,7 +180,8 @@ namespace TestPlatform.SDK
             var camera3D = Camera.main;
             if (camera3D != null)
             {
-                return camera3D.WorldToScreenPoint(element.transform.position);
+                Vector3 screenPos = camera3D.WorldToScreenPoint(element.transform.position);
+                return new Vector2(screenPos.x, screenPos.y);
             }
 
             return null;
