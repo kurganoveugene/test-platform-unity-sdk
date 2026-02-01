@@ -129,6 +129,10 @@ namespace TestPlatform.SDK
 
             switch (message.Type)
             {
+                case MessageTypes.Connected:
+                    Log("Server acknowledged connection");
+                    break;
+
                 case MessageTypes.InitSession:
                     await HandleInitSession(message);
                     break;
@@ -137,8 +141,16 @@ namespace TestPlatform.SDK
                     await HandleExecuteStep(message);
                     break;
 
+                case MessageTypes.ExecuteCommand:
+                    await HandleExecuteCommand(message);
+                    break;
+
                 case MessageTypes.Abort:
                     HandleAbort(message);
+                    break;
+
+                default:
+                    Log($"Unknown message type: {message.Type}");
                     break;
             }
         }
@@ -173,6 +185,48 @@ namespace TestPlatform.SDK
         {
             var payload = message.GetPayload<AbortPayload>();
             Log($"Test aborted: {payload.Reason}");
+        }
+
+        private async System.Threading.Tasks.Task HandleExecuteCommand(Message message)
+        {
+            Log("Executing debug command...");
+            var payload = message.GetPayload<ExecuteCommandPayload>();
+
+            if (payload?.Command == null)
+            {
+                LogError("Received execute_command with null command");
+                return;
+            }
+
+            var startTime = DateTime.UtcNow;
+
+            try
+            {
+                await _executor.Execute(payload.Command);
+                var duration = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
+                Log($"Command executed successfully in {duration}ms: {payload.Command.Action}");
+
+                // Send result back
+                _connection?.Send(MessageTypes.CommandResult, new
+                {
+                    status = "passed",
+                    action = payload.Command.Action,
+                    durationMs = duration
+                });
+            }
+            catch (Exception ex)
+            {
+                var duration = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
+                LogError($"Command failed: {ex.Message}");
+
+                _connection?.Send(MessageTypes.CommandResult, new
+                {
+                    status = "failed",
+                    action = payload.Command.Action,
+                    durationMs = duration,
+                    error = ex.Message
+                });
+            }
         }
 
         private void SendSessionReady()

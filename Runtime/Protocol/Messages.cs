@@ -6,14 +6,17 @@ namespace TestPlatform.SDK
     public static class MessageTypes
     {
         // Server → SDK
+        public const string Connected = "connected";
         public const string InitSession = "init_session";
         public const string ExecuteStep = "execute_step";
+        public const string ExecuteCommand = "execute_command";
         public const string Abort = "abort";
 
         // SDK → Server
         public const string SessionReady = "session_ready";
         public const string StepResult = "step_result";
         public const string TestComplete = "test_complete";
+        public const string CommandResult = "command_result";
         public const string Heartbeat = "heartbeat";
     }
 
@@ -62,6 +65,12 @@ namespace TestPlatform.SDK
     public class AbortPayload
     {
         public string Reason;
+    }
+
+    [Serializable]
+    public class ExecuteCommandPayload
+    {
+        public Command Command;
     }
 
     // === SDK → Server Payloads ===
