@@ -42,6 +42,9 @@ namespace TestPlatform.SDK
                 case "swipe":
                     await ExecuteSwipe(command);
                     break;
+                case "drag":
+                    await ExecuteDrag(command);
+                    break;
                 case "wait":
                     await ExecuteWait(command);
                     break;
@@ -199,6 +202,108 @@ namespace TestPlatform.SDK
 
             var duration = command.Duration > 0 ? command.Duration : 300;
             await _input.Swipe(from, to, duration);
+        }
+
+        private async Task ExecuteDrag(Command command)
+        {
+            if (command.Selector == null)
+            {
+                throw new InvalidOperationException("Drag command requires a selector for the element to drag");
+            }
+
+            var element = _locator.Find(command.Selector);
+            if (element == null)
+            {
+                throw new ElementNotFoundException(command.Selector);
+            }
+
+            // Get start position from element
+            var rectTransform = element.GetComponent<RectTransform>();
+            Vector2 startPos;
+
+            if (rectTransform != null)
+            {
+                startPos = RectTransformUtility.WorldToScreenPoint(Camera.main, rectTransform.position);
+            }
+            else
+            {
+                startPos = Camera.main.WorldToScreenPoint(element.transform.position);
+            }
+
+            // Determine end position
+            Vector2 endPos;
+            if (command.To != null)
+            {
+                endPos = GetAbsolutePosition(command.To);
+            }
+            else
+            {
+                throw new InvalidOperationException("Drag command requires a 'to' position");
+            }
+
+            Debug.Log($"[TestPlatform] Dragging {element.name} from {startPos} to {endPos}");
+
+            var eventData = new PointerEventData(EventSystem.current)
+            {
+                position = startPos,
+                pressPosition = startPos,
+                button = PointerEventData.InputButton.Left
+            };
+
+            // Check if element supports drag events
+            bool hasDragHandler = ExecuteEvents.CanHandleEvent<IBeginDragHandler>(element) ||
+                                  ExecuteEvents.CanHandleEvent<IDragHandler>(element);
+
+            if (!hasDragHandler)
+            {
+                // Try to find draggable component in children or parents
+                var draggable = element.GetComponentInChildren<IBeginDragHandler>() as MonoBehaviour;
+                if (draggable == null)
+                {
+                    draggable = element.GetComponentInParent<IBeginDragHandler>() as MonoBehaviour;
+                }
+
+                if (draggable != null)
+                {
+                    element = draggable.gameObject;
+                    Debug.Log($"[TestPlatform] Found draggable component on: {element.name}");
+                }
+                else
+                {
+                    Debug.LogWarning($"[TestPlatform] Element {element.name} doesn't have drag handlers, attempting raw drag simulation");
+                }
+            }
+
+            // Begin drag
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerDownHandler);
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.initializePotentialDrag);
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.beginDragHandler);
+
+            // Simulate drag movement over time
+            var duration = command.Duration > 0 ? command.Duration : 300;
+            var steps = Mathf.Max(10, duration / 16); // ~60fps
+            var stepDuration = duration / steps;
+
+            for (int i = 1; i <= steps; i++)
+            {
+                var t = (float)i / steps;
+                var currentPos = Vector2.Lerp(startPos, endPos, t);
+
+                eventData.position = currentPos;
+                eventData.delta = currentPos - (i == 1 ? startPos : Vector2.Lerp(startPos, endPos, (float)(i - 1) / steps));
+
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.dragHandler);
+
+                await Task.Delay(stepDuration);
+            }
+
+            // End drag
+            eventData.position = endPos;
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.endDragHandler);
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerUpHandler);
+            ExecuteEvents.Execute(element, eventData, ExecuteEvents.dropHandler);
+
+            Debug.Log($"[TestPlatform] Drag complete");
         }
 
         private async Task ExecuteWait(Command command)
