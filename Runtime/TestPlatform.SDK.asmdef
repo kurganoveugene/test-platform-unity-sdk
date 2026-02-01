@@ -1,7 +1,9 @@
 {
   "name": "TestPlatform.SDK",
   "rootNamespace": "TestPlatform.SDK",
-  "references": [],
+  "references": [
+    "Unity.TextMeshPro"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
