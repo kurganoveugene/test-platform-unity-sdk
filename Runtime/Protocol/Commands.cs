@@ -68,6 +68,9 @@ namespace TestPlatform.SDK
         // Screenshot
         public string name;
 
+        // Slider
+        public float sliderValue;
+
         // Property accessors for compatibility
         public string Action => action;
         public ElementSelector Selector => selector;
@@ -83,6 +86,7 @@ namespace TestPlatform.SDK
         public string Text => text;
         public bool ClearFirst => clearFirst;
         public string Name => name;
+        public float SliderValue => sliderValue;
     }
 
     [Serializable]

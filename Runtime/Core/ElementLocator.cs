@@ -144,38 +144,55 @@ namespace TestPlatform.SDK
                 return null;
             }
 
+            return GetScreenPositionOfGameObject(element);
+        }
+
+        /// <summary>
+        /// Get the screen position of a GameObject's center.
+        /// </summary>
+        public Vector2? GetScreenPositionOfGameObject(GameObject element)
+        {
+            if (element == null)
+            {
+                return null;
+            }
+
             // For UI elements - use RectTransformUtility for accurate conversion
             var rectTransform = element.GetComponent<RectTransform>();
             if (rectTransform != null)
             {
                 var canvas = element.GetComponentInParent<Canvas>();
-                Camera cam = canvas?.worldCamera;
+                if (canvas == null)
+                {
+                    Debug.LogWarning($"[TestPlatform] RectTransform {element.name} has no Canvas parent");
+                    return null;
+                }
 
-                // If no world camera assigned, use main camera for non-overlay canvases
-                if (cam == null && canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                // Get the root canvas (in case of nested canvases)
+                var rootCanvas = canvas.rootCanvas;
+                Camera cam = rootCanvas.worldCamera;
+
+                // For Screen Space - Overlay, use null camera with RectTransformUtility
+                if (rootCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
+                {
+                    cam = null;
+                }
+                else if (cam == null)
                 {
                     cam = Camera.main;
                 }
 
-                // Convert rect center to screen point
-                Vector3 worldCenter = rectTransform.TransformPoint(rectTransform.rect.center);
+                // Get the center of the rect in world space
+                Vector3[] corners = new Vector3[4];
+                rectTransform.GetWorldCorners(corners);
+                Vector3 worldCenter = (corners[0] + corners[2]) / 2f;
 
-                if (canvas != null && canvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                {
-                    // Overlay: position is already in screen space
-                    return new Vector2(worldCenter.x, worldCenter.y);
-                }
-                else if (cam != null)
-                {
-                    // Camera-based canvas or world space
-                    Vector3 screenPos = cam.WorldToScreenPoint(worldCenter);
-                    return new Vector2(screenPos.x, screenPos.y);
-                }
-                else
-                {
-                    // Fallback for overlay without explicit check
-                    return new Vector2(worldCenter.x, worldCenter.y);
-                }
+                // Convert to screen position
+                Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(cam, worldCenter);
+
+                Debug.Log($"[TestPlatform] Element {element.name} screen position: {screenPos} (Canvas mode: {rootCanvas.renderMode})");
+
+                return screenPos;
             }
 
             // For 3D objects

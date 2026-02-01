@@ -57,6 +57,9 @@ namespace TestPlatform.SDK
                 case "screenshot":
                     await ExecuteScreenshot(command);
                     break;
+                case "set_slider":
+                    ExecuteSetSlider(command);
+                    break;
                 default:
                     throw new InvalidOperationException($"Unknown command action: {command.Action}");
             }
@@ -217,18 +220,13 @@ namespace TestPlatform.SDK
                 throw new ElementNotFoundException(command.Selector);
             }
 
-            // Get start position from element
-            var rectTransform = element.GetComponent<RectTransform>();
-            Vector2 startPos;
-
-            if (rectTransform != null)
+            // Get start position from element using proper screen position calculation
+            var startPosNullable = _locator.GetScreenPositionOfGameObject(element);
+            if (startPosNullable == null)
             {
-                startPos = RectTransformUtility.WorldToScreenPoint(Camera.main, rectTransform.position);
+                throw new InvalidOperationException($"Could not get screen position of element: {element.name}");
             }
-            else
-            {
-                startPos = Camera.main.WorldToScreenPoint(element.transform.position);
-            }
+            Vector2 startPos = startPosNullable.Value;
 
             // Determine end position
             Vector2 endPos;
@@ -452,6 +450,43 @@ namespace TestPlatform.SDK
             ScreenshotCapture.LastScreenshotName = name;
 
             Debug.Log($"[TestPlatform] Screenshot captured: {name}");
+        }
+
+        private void ExecuteSetSlider(Command command)
+        {
+            if (command.Selector == null)
+            {
+                throw new InvalidOperationException("SetSlider command requires a selector");
+            }
+
+            var element = _locator.Find(command.Selector);
+            if (element == null)
+            {
+                throw new ElementNotFoundException(command.Selector);
+            }
+
+            // Try Unity UI Slider
+            var slider = element.GetComponent<Slider>();
+            if (slider == null)
+            {
+                // Try to find Slider in parent (for Handle Slide Area, Fill Area, etc.)
+                slider = element.GetComponentInParent<Slider>();
+            }
+
+            if (slider != null)
+            {
+                var value = command.SliderValue;
+                // Clamp value between min and max
+                value = Mathf.Clamp(value, slider.minValue, slider.maxValue);
+
+                Debug.Log($"[TestPlatform] Setting slider {element.name} to {value} (range: {slider.minValue}-{slider.maxValue})");
+
+                slider.value = value;
+                slider.onValueChanged?.Invoke(value);
+                return;
+            }
+
+            throw new InvalidOperationException($"Element {element.name} is not a Slider");
         }
 
         private Vector2 GetAbsolutePosition(Position pos)
