@@ -151,8 +151,9 @@ namespace TestPlatform.SDK
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
                         var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        var message = JsonUtility.FromJson<Message>(json);
+                        Log($"Raw JSON: {json}");
 
+                        var message = Message.Parse(json);
                         Log($"Received: {message.Type}");
 
                         // Queue message for main thread processing

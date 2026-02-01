@@ -5,92 +5,121 @@ namespace TestPlatform.SDK
     [Serializable]
     public class TestPlan
     {
-        public string Version;
-        public TestPlanMetadata Metadata;
-        public TestPlanConfig Config;
-        public TestStep[] Steps;
+        public string version;
+        public TestPlanMetadata metadata;
+        public TestPlanConfig config;
+        public TestStep[] steps;
     }
 
     [Serializable]
     public class TestPlanMetadata
     {
-        public string TestCaseId;
-        public string Name;
-        public string CompiledAt;
+        public string testCaseId;
+        public string name;
+        public string compiledAt;
     }
 
     [Serializable]
     public class TestPlanConfig
     {
-        public int DefaultTimeout = 10000;
-        public bool ScreenshotOnStep;
-        public bool ScreenshotOnFailure = true;
+        public int defaultTimeout = 10000;
+        public bool screenshotOnStep;
+        public bool screenshotOnFailure = true;
     }
 
     [Serializable]
     public class TestStep
     {
-        public string Id;
-        public string Description;
-        public Command Command;
-        public string OnFailure; // "abort", "continue", "retry"
-        public int RetryCount;
-        public int Timeout;
+        public string id;
+        public string description;
+        public Command command;
+        public string onFailure; // "abort", "continue", "retry"
+        public int retryCount;
+        public int timeout;
     }
 
     [Serializable]
     public class Command
     {
-        public string Action; // "tap", "swipe", "wait", "assert", "input_text", "screenshot"
-        public ElementSelector Selector;
+        public string action; // "tap", "swipe", "wait", "assert", "input_text", "screenshot"
+        public ElementSelector selector;
 
         // Tap
-        public int HoldDuration;
+        public int holdDuration;
 
         // Swipe
-        public Position From;
-        public Position To;
-        public int Duration;
+        public Position from;
+        public Position to;
+        public int duration;
 
         // Wait
-        public WaitCondition Condition;
-        public int Timeout;
+        public WaitCondition condition;
+        public int timeout;
 
         // Assert
-        public string Property;
-        public string Operator; // "equals", "contains", "gt", "lt", "exists"
-        public string Expected;
+        public string property;
+        public string @operator; // "equals", "contains", "gt", "lt", "exists"
+        public string expected;
 
         // Input
-        public string Text;
-        public bool ClearFirst;
+        public string text;
+        public bool clearFirst;
 
         // Screenshot
-        public string Name;
+        public string name;
+
+        // Property accessors for compatibility
+        public string Action => action;
+        public ElementSelector Selector => selector;
+        public int HoldDuration => holdDuration;
+        public Position From => from;
+        public Position To => to;
+        public int Duration => duration;
+        public WaitCondition Condition => condition;
+        public int Timeout => timeout;
+        public string Property => property;
+        public string Operator => @operator;
+        public string Expected => expected;
+        public string Text => text;
+        public bool ClearFirst => clearFirst;
+        public string Name => name;
     }
 
     [Serializable]
     public class ElementSelector
     {
-        public string Strategy; // "name", "tag", "path", "text", "component"
-        public string Value;
-        public int Index;
+        public string strategy; // "name", "tag", "path", "text", "component"
+        public string value;
+        public int index;
+
+        public string Strategy => strategy;
+        public string Value => value;
+        public int Index => index;
     }
 
     [Serializable]
     public class Position
     {
-        public float X;
-        public float Y;
-        public bool Relative; // If true, X/Y are 0-1 relative to screen
+        public float x;
+        public float y;
+        public bool relative; // If true, X/Y are 0-1 relative to screen
+
+        public float X => x;
+        public float Y => y;
+        public bool Relative => relative;
     }
 
     [Serializable]
     public class WaitCondition
     {
-        public string Type; // "element_visible", "element_gone", "scene_loaded", "delay"
-        public ElementSelector Selector;
-        public string SceneName;
-        public int Ms;
+        public string type; // "element_visible", "element_gone", "scene_loaded", "delay"
+        public ElementSelector selector;
+        public string sceneName;
+        public int ms;
+
+        public string Type => type;
+        public ElementSelector Selector => selector;
+        public string SceneName => sceneName;
+        public int Ms => ms;
     }
 }

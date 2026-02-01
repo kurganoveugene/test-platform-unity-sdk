@@ -23,16 +23,72 @@ namespace TestPlatform.SDK
     [Serializable]
     public class Message
     {
-        public string Type;
-        public string Id;
-        public long Timestamp;
-        public object Payload;
+        public string type;
+        public string id;
+        public long timestamp;
+
+        // Raw JSON string for payload (parsed separately)
+        [NonSerialized]
+        public string PayloadJson;
+
+        public string Type => type;
 
         public T GetPayload<T>()
         {
-            if (Payload == null) return default;
-            var json = JsonUtility.ToJson(Payload);
-            return JsonUtility.FromJson<T>(json);
+            if (string.IsNullOrEmpty(PayloadJson)) return default;
+            return JsonUtility.FromJson<T>(PayloadJson);
+        }
+
+        public static Message Parse(string json)
+        {
+            // First parse the basic message structure
+            var message = JsonUtility.FromJson<Message>(json);
+
+            // Extract payload JSON manually
+            var payloadStart = json.IndexOf("\"payload\":");
+            if (payloadStart >= 0)
+            {
+                payloadStart += 10; // length of "payload":
+
+                // Skip whitespace
+                while (payloadStart < json.Length && char.IsWhiteSpace(json[payloadStart]))
+                    payloadStart++;
+
+                if (payloadStart < json.Length)
+                {
+                    // Find the matching closing brace
+                    int depth = 0;
+                    int payloadEnd = payloadStart;
+                    bool inString = false;
+
+                    for (int i = payloadStart; i < json.Length; i++)
+                    {
+                        char c = json[i];
+
+                        if (c == '"' && (i == 0 || json[i-1] != '\\'))
+                        {
+                            inString = !inString;
+                        }
+                        else if (!inString)
+                        {
+                            if (c == '{' || c == '[') depth++;
+                            else if (c == '}' || c == ']')
+                            {
+                                depth--;
+                                if (depth == 0)
+                                {
+                                    payloadEnd = i + 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    message.PayloadJson = json.Substring(payloadStart, payloadEnd - payloadStart);
+                }
+            }
+
+            return message;
         }
     }
 
@@ -70,7 +126,8 @@ namespace TestPlatform.SDK
     [Serializable]
     public class ExecuteCommandPayload
     {
-        public Command Command;
+        public Command command;
+        public Command Command => command;
     }
 
     // === SDK → Server Payloads ===
