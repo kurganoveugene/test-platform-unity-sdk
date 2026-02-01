@@ -61,33 +61,78 @@ namespace TestPlatform.SDK
 
         private async Task ExecuteTap(Command command)
         {
-            Vector2 position;
-
+            // If selector provided, try to click UI element directly first
             if (command.Selector != null)
             {
-                var screenPos = _locator.GetScreenPosition(command.Selector);
-                if (screenPos == null)
+                var element = _locator.Find(command.Selector);
+                if (element == null)
                 {
                     throw new ElementNotFoundException(command.Selector);
                 }
-                position = screenPos.Value;
+
+                // Try to click Button directly
+                var button = element.GetComponent<Button>();
+                if (button != null && button.interactable)
+                {
+                    Debug.Log($"[TestPlatform] Clicking button directly: {element.name}");
+                    button.onClick?.Invoke();
+                    await Task.Delay(50); // Small delay for UI to respond
+                    return;
+                }
+
+                // Try IPointerClickHandler
+                var clickHandler = element.GetComponent<IPointerClickHandler>();
+                if (clickHandler != null)
+                {
+                    Debug.Log($"[TestPlatform] Invoking click handler: {element.name}");
+                    var eventData = new PointerEventData(EventSystem.current);
+                    clickHandler.OnPointerClick(eventData);
+                    await Task.Delay(50);
+                    return;
+                }
+
+                // Fallback to position-based tap
+                var screenPos = _locator.GetScreenPosition(command.Selector);
+                if (screenPos != null && screenPos.Value != Vector2.zero)
+                {
+                    Debug.Log($"[TestPlatform] Tap at {screenPos.Value}");
+                    await _input.Tap(screenPos.Value);
+                    return;
+                }
+
+                // Last resort: try to find any clickable parent
+                var selectableParent = element.GetComponentInParent<Selectable>();
+                if (selectableParent != null)
+                {
+                    var parentButton = selectableParent as Button;
+                    if (parentButton != null && parentButton.interactable)
+                    {
+                        Debug.Log($"[TestPlatform] Clicking parent button: {selectableParent.name}");
+                        parentButton.onClick?.Invoke();
+                        await Task.Delay(50);
+                        return;
+                    }
+                }
+
+                throw new InvalidOperationException($"Cannot tap element: {element.name} - no clickable component found");
             }
             else if (command.From != null)
             {
-                position = GetAbsolutePosition(command.From);
+                var position = GetAbsolutePosition(command.From);
+                Debug.Log($"[TestPlatform] Tap at position {position}");
+
+                if (command.HoldDuration > 0)
+                {
+                    await _input.LongPress(position, command.HoldDuration);
+                }
+                else
+                {
+                    await _input.Tap(position);
+                }
             }
             else
             {
                 throw new InvalidOperationException("Tap command requires either a selector or position");
-            }
-
-            if (command.HoldDuration > 0)
-            {
-                await _input.LongPress(position, command.HoldDuration);
-            }
-            else
-            {
-                await _input.Tap(position);
             }
         }
 
