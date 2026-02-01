@@ -101,15 +101,9 @@ namespace TestPlatform.SDK
 
             try
             {
-                var message = new Message
-                {
-                    Type = type,
-                    Id = Guid.NewGuid().ToString(),
-                    Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    Payload = payload
-                };
-
-                var json = JsonUtility.ToJson(message);
+                // Build JSON manually to include payload
+                var payloadJson = JsonUtility.ToJson(payload);
+                var json = $"{{\"type\":\"{type}\",\"id\":\"{Guid.NewGuid()}\",\"timestamp\":{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()},\"payload\":{payloadJson}}}";
                 var bytes = Encoding.UTF8.GetBytes(json);
 
                 await _socket.SendAsync(
