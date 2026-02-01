@@ -70,48 +70,20 @@ namespace TestPlatform.SDK
                     throw new ElementNotFoundException(command.Selector);
                 }
 
-                // Try to click Button directly
-                var button = element.GetComponent<Button>();
-                if (button != null && button.interactable)
+                if (await TryClickElement(element))
                 {
-                    Debug.Log($"[TestPlatform] Clicking button directly: {element.name}");
-                    button.onClick?.Invoke();
-                    await Task.Delay(50); // Small delay for UI to respond
                     return;
                 }
 
-                // Try IPointerClickHandler
-                var clickHandler = element.GetComponent<IPointerClickHandler>();
-                if (clickHandler != null)
+                // Try parent elements
+                var parent = element.transform.parent;
+                while (parent != null)
                 {
-                    Debug.Log($"[TestPlatform] Invoking click handler: {element.name}");
-                    var eventData = new PointerEventData(EventSystem.current);
-                    clickHandler.OnPointerClick(eventData);
-                    await Task.Delay(50);
-                    return;
-                }
-
-                // Fallback to position-based tap
-                var screenPos = _locator.GetScreenPosition(command.Selector);
-                if (screenPos != null && screenPos.Value != Vector2.zero)
-                {
-                    Debug.Log($"[TestPlatform] Tap at {screenPos.Value}");
-                    await _input.Tap(screenPos.Value);
-                    return;
-                }
-
-                // Last resort: try to find any clickable parent
-                var selectableParent = element.GetComponentInParent<Selectable>();
-                if (selectableParent != null)
-                {
-                    var parentButton = selectableParent as Button;
-                    if (parentButton != null && parentButton.interactable)
+                    if (await TryClickElement(parent.gameObject))
                     {
-                        Debug.Log($"[TestPlatform] Clicking parent button: {selectableParent.name}");
-                        parentButton.onClick?.Invoke();
-                        await Task.Delay(50);
                         return;
                     }
+                    parent = parent.parent;
                 }
 
                 throw new InvalidOperationException($"Cannot tap element: {element.name} - no clickable component found");
@@ -134,6 +106,71 @@ namespace TestPlatform.SDK
             {
                 throw new InvalidOperationException("Tap command requires either a selector or position");
             }
+        }
+
+        private async Task<bool> TryClickElement(GameObject element)
+        {
+            // 1. Try Button.onClick
+            var button = element.GetComponent<Button>();
+            if (button != null && button.interactable)
+            {
+                Debug.Log($"[TestPlatform] Clicking Button: {element.name}");
+                button.onClick?.Invoke();
+                await Task.Delay(50);
+                return true;
+            }
+
+            // 2. Try Toggle
+            var toggle = element.GetComponent<Toggle>();
+            if (toggle != null && toggle.interactable)
+            {
+                Debug.Log($"[TestPlatform] Toggling: {element.name}");
+                toggle.isOn = !toggle.isOn;
+                await Task.Delay(50);
+                return true;
+            }
+
+            // 3. Try using ExecuteEvents to simulate pointer click (works for EventTrigger, etc.)
+            var eventData = new PointerEventData(EventSystem.current)
+            {
+                position = element.transform.position
+            };
+
+            // Check if element can handle pointer events
+            if (ExecuteEvents.CanHandleEvent<IPointerClickHandler>(element) ||
+                ExecuteEvents.CanHandleEvent<IPointerDownHandler>(element) ||
+                ExecuteEvents.CanHandleEvent<IPointerUpHandler>(element))
+            {
+                Debug.Log($"[TestPlatform] Simulating pointer events: {element.name}");
+
+                // Simulate full click sequence
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerEnterHandler);
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerDownHandler);
+                await Task.Delay(50);
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerUpHandler);
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerClickHandler);
+                ExecuteEvents.Execute(element, eventData, ExecuteEvents.pointerExitHandler);
+
+                return true;
+            }
+
+            // 4. Try EventTrigger
+            var eventTrigger = element.GetComponent<EventTrigger>();
+            if (eventTrigger != null)
+            {
+                Debug.Log($"[TestPlatform] Invoking EventTrigger: {element.name}");
+                foreach (var entry in eventTrigger.triggers)
+                {
+                    if (entry.eventID == EventTriggerType.PointerClick)
+                    {
+                        entry.callback?.Invoke(new BaseEventData(EventSystem.current));
+                        await Task.Delay(50);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private async Task ExecuteSwipe(Command command)
