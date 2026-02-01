@@ -1,0 +1,21 @@
+{
+  "name": "com.testplatform.sdk",
+  "version": "0.1.0",
+  "displayName": "Test Platform SDK",
+  "description": "SDK for automated testing of Unity games via Test Platform",
+  "unity": "2021.3",
+  "unityRelease": "0f1",
+  "documentationUrl": "https://github.com/kurganoveugene/test-platform-unity-sdk",
+  "changelogUrl": "https://github.com/kurganoveugene/test-platform-unity-sdk/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/kurganoveugene/test-platform-unity-sdk/blob/main/LICENSE",
+  "keywords": [
+    "testing",
+    "automation",
+    "qa"
+  ],
+  "author": {
+    "name": "Test Platform",
+    "url": "https://github.com/kurganoveugene"
+  },
+  "dependencies": {}
+}
