@@ -210,7 +210,7 @@ namespace TestPlatform.SDK
                 if (payload.Command.Action?.ToLower() == "screenshot" && ScreenshotCapture.LastScreenshot != null)
                 {
                     var screenshotBase64 = Convert.ToBase64String(ScreenshotCapture.LastScreenshot);
-                    _connection?.Send(MessageTypes.CommandResult, new
+                    _connection?.Send(MessageTypes.CommandResult, new CommandResultPayload
                     {
                         status = "passed",
                         action = payload.Command.Action,
@@ -221,7 +221,7 @@ namespace TestPlatform.SDK
                 }
                 else
                 {
-                    _connection?.Send(MessageTypes.CommandResult, new
+                    _connection?.Send(MessageTypes.CommandResult, new CommandResultPayload
                     {
                         status = "passed",
                         action = payload.Command.Action,
@@ -234,7 +234,7 @@ namespace TestPlatform.SDK
                 var duration = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
                 LogError($"Command failed: {ex.Message}");
 
-                _connection?.Send(MessageTypes.CommandResult, new
+                _connection?.Send(MessageTypes.CommandResult, new CommandResultPayload
                 {
                     status = "failed",
                     action = payload.Command.Action,

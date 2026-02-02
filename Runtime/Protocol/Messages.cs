@@ -170,4 +170,14 @@ namespace TestPlatform.SDK
         public int TotalDurationMs;
         public string VideoPath;
     }
+
+    [Serializable]
+    public class CommandResultPayload
+    {
+        public string status;
+        public string action;
+        public int durationMs;
+        public string error;
+        public string screenshot; // Base64
+    }
 }
