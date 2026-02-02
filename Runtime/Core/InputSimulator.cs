@@ -11,6 +11,7 @@ namespace TestPlatform.SDK
     public class InputSimulator
     {
         private PointerEventData _pointerData;
+        private EventSystem _cachedEventSystem;
         private readonly List<RaycastResult> _raycastResults;
 
         public InputSimulator()
@@ -20,11 +21,13 @@ namespace TestPlatform.SDK
 
         private PointerEventData GetPointerData()
         {
-            if (_pointerData == null || _pointerData.eventSystem != EventSystem.current)
+            // Recreate if EventSystem changed (e.g., scene change)
+            if (_pointerData == null || _cachedEventSystem != EventSystem.current)
             {
                 if (EventSystem.current != null)
                 {
-                    _pointerData = new PointerEventData(EventSystem.current);
+                    _cachedEventSystem = EventSystem.current;
+                    _pointerData = new PointerEventData(_cachedEventSystem);
                 }
             }
             return _pointerData;
