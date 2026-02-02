@@ -10,17 +10,33 @@ namespace TestPlatform.SDK
     /// </summary>
     public class InputSimulator
     {
-        private readonly PointerEventData _pointerData;
+        private PointerEventData _pointerData;
         private readonly List<RaycastResult> _raycastResults;
 
         public InputSimulator()
         {
-            var eventSystem = EventSystem.current;
-            if (eventSystem != null)
-            {
-                _pointerData = new PointerEventData(eventSystem);
-            }
             _raycastResults = new List<RaycastResult>();
+        }
+
+        private PointerEventData GetPointerData()
+        {
+            if (_pointerData == null || _pointerData.eventSystem != EventSystem.current)
+            {
+                if (EventSystem.current != null)
+                {
+                    _pointerData = new PointerEventData(EventSystem.current);
+                }
+            }
+            return _pointerData;
+        }
+
+        /// <summary>
+        /// Convert screen position from top-left origin (Vision AI) to bottom-left origin (Unity).
+        /// </summary>
+        private Vector2 ConvertScreenPosition(Vector2 position)
+        {
+            // Vision AI returns Y from top, Unity expects Y from bottom
+            return new Vector2(position.x, Screen.height - position.y);
         }
 
         /// <summary>
@@ -28,19 +44,22 @@ namespace TestPlatform.SDK
         /// </summary>
         public async Task Tap(Vector2 screenPosition)
         {
-            Debug.Log($"[TestPlatform] Tap at {screenPosition}");
+            // Convert from top-left origin to bottom-left origin
+            var unityPosition = ConvertScreenPosition(screenPosition);
+            Debug.Log($"[TestPlatform] Tap at {screenPosition} (Unity: {unityPosition})");
 
-            var target = GetTargetAtPosition(screenPosition);
+            var target = GetTargetAtPosition(unityPosition);
             if (target != null)
             {
-                SimulatePointerDown(target, screenPosition);
+                Debug.Log($"[TestPlatform] Found target: {target.name}");
+                SimulatePointerDown(target, unityPosition);
                 await Task.Delay(50);
-                SimulatePointerUp(target, screenPosition);
-                SimulatePointerClick(target, screenPosition);
+                SimulatePointerUp(target, unityPosition);
+                SimulatePointerClick(target, unityPosition);
             }
             else
             {
-                Debug.LogWarning($"[TestPlatform] No UI element at position {screenPosition}");
+                Debug.LogWarning($"[TestPlatform] No UI element at position {unityPosition}");
             }
         }
 
@@ -49,14 +68,15 @@ namespace TestPlatform.SDK
         /// </summary>
         public async Task LongPress(Vector2 screenPosition, int durationMs)
         {
-            Debug.Log($"[TestPlatform] Long press at {screenPosition} for {durationMs}ms");
+            var unityPosition = ConvertScreenPosition(screenPosition);
+            Debug.Log($"[TestPlatform] Long press at {screenPosition} (Unity: {unityPosition}) for {durationMs}ms");
 
-            var target = GetTargetAtPosition(screenPosition);
+            var target = GetTargetAtPosition(unityPosition);
             if (target != null)
             {
-                SimulatePointerDown(target, screenPosition);
+                SimulatePointerDown(target, unityPosition);
                 await Task.Delay(durationMs);
-                SimulatePointerUp(target, screenPosition);
+                SimulatePointerUp(target, unityPosition);
             }
         }
 
@@ -65,22 +85,24 @@ namespace TestPlatform.SDK
         /// </summary>
         public async Task Swipe(Vector2 from, Vector2 to, int durationMs)
         {
-            Debug.Log($"[TestPlatform] Swipe from {from} to {to} over {durationMs}ms");
+            var unityFrom = ConvertScreenPosition(from);
+            var unityTo = ConvertScreenPosition(to);
+            Debug.Log($"[TestPlatform] Swipe from {from} to {to} (Unity: {unityFrom} to {unityTo}) over {durationMs}ms");
 
-            var target = GetTargetAtPosition(from);
+            var target = GetTargetAtPosition(unityFrom);
             var steps = Mathf.Max(10, durationMs / 16); // ~60fps
             var stepDelay = durationMs / steps;
 
             if (target != null)
             {
-                SimulatePointerDown(target, from);
-                SimulateBeginDrag(target, from);
+                SimulatePointerDown(target, unityFrom);
+                SimulateBeginDrag(target, unityFrom);
             }
 
             for (int i = 1; i <= steps; i++)
             {
                 var t = (float)i / steps;
-                var current = Vector2.Lerp(from, to, t);
+                var current = Vector2.Lerp(unityFrom, unityTo, t);
 
                 if (target != null)
                 {
@@ -92,22 +114,30 @@ namespace TestPlatform.SDK
 
             if (target != null)
             {
-                SimulateEndDrag(target, to);
-                SimulatePointerUp(target, to);
+                SimulateEndDrag(target, unityTo);
+                SimulatePointerUp(target, unityTo);
             }
         }
 
         private GameObject GetTargetAtPosition(Vector2 screenPosition)
         {
-            if (_pointerData == null || EventSystem.current == null)
+            var pointerData = GetPointerData();
+            if (pointerData == null || EventSystem.current == null)
             {
+                Debug.LogWarning("[TestPlatform] No EventSystem found");
                 return null;
             }
 
-            _pointerData.position = screenPosition;
+            pointerData.position = screenPosition;
             _raycastResults.Clear();
 
-            EventSystem.current.RaycastAll(_pointerData, _raycastResults);
+            EventSystem.current.RaycastAll(pointerData, _raycastResults);
+
+            Debug.Log($"[TestPlatform] Raycast found {_raycastResults.Count} results");
+            for (int i = 0; i < Mathf.Min(_raycastResults.Count, 5); i++)
+            {
+                Debug.Log($"[TestPlatform]   [{i}] {_raycastResults[i].gameObject.name}");
+            }
 
             if (_raycastResults.Count > 0)
             {
@@ -119,82 +149,104 @@ namespace TestPlatform.SDK
 
         private void SimulatePointerDown(GameObject target, Vector2 position)
         {
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
+
             UpdatePointerData(position);
-            _pointerData.pressPosition = position;
-            _pointerData.pointerPressRaycast = _pointerData.pointerCurrentRaycast;
+            pointerData.pressPosition = position;
+            pointerData.pointerPressRaycast = pointerData.pointerCurrentRaycast;
 
             var handler = ExecuteEvents.GetEventHandler<IPointerDownHandler>(target);
             if (handler != null)
             {
-                _pointerData.pointerPress = handler;
-                ExecuteEvents.Execute(handler, _pointerData, ExecuteEvents.pointerDownHandler);
+                Debug.Log($"[TestPlatform] PointerDown on {handler.name}");
+                pointerData.pointerPress = handler;
+                ExecuteEvents.Execute(handler, pointerData, ExecuteEvents.pointerDownHandler);
             }
         }
 
         private void SimulatePointerUp(GameObject target, Vector2 position)
         {
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
+
             UpdatePointerData(position);
 
             var handler = ExecuteEvents.GetEventHandler<IPointerUpHandler>(target);
             if (handler != null)
             {
-                ExecuteEvents.Execute(handler, _pointerData, ExecuteEvents.pointerUpHandler);
+                Debug.Log($"[TestPlatform] PointerUp on {handler.name}");
+                ExecuteEvents.Execute(handler, pointerData, ExecuteEvents.pointerUpHandler);
             }
 
-            _pointerData.pointerPress = null;
+            pointerData.pointerPress = null;
         }
 
         private void SimulatePointerClick(GameObject target, Vector2 position)
         {
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
+
             UpdatePointerData(position);
 
             var handler = ExecuteEvents.GetEventHandler<IPointerClickHandler>(target);
             if (handler != null)
             {
-                ExecuteEvents.Execute(handler, _pointerData, ExecuteEvents.pointerClickHandler);
+                Debug.Log($"[TestPlatform] PointerClick on {handler.name}");
+                ExecuteEvents.Execute(handler, pointerData, ExecuteEvents.pointerClickHandler);
             }
 
             // Also try to submit if it's a selectable
             var submitHandler = ExecuteEvents.GetEventHandler<ISubmitHandler>(target);
             if (submitHandler != null)
             {
-                ExecuteEvents.Execute(submitHandler, _pointerData, ExecuteEvents.submitHandler);
+                Debug.Log($"[TestPlatform] Submit on {submitHandler.name}");
+                ExecuteEvents.Execute(submitHandler, pointerData, ExecuteEvents.submitHandler);
             }
         }
 
         private void SimulateBeginDrag(GameObject target, Vector2 position)
         {
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
+
             UpdatePointerData(position);
-            _pointerData.dragging = true;
+            pointerData.dragging = true;
 
             var handler = ExecuteEvents.GetEventHandler<IBeginDragHandler>(target);
             if (handler != null)
             {
-                _pointerData.pointerDrag = handler;
-                ExecuteEvents.Execute(handler, _pointerData, ExecuteEvents.beginDragHandler);
+                pointerData.pointerDrag = handler;
+                ExecuteEvents.Execute(handler, pointerData, ExecuteEvents.beginDragHandler);
             }
         }
 
         private void SimulateDrag(GameObject target, Vector2 position)
         {
-            var delta = position - _pointerData.position;
-            UpdatePointerData(position);
-            _pointerData.delta = delta;
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
 
-            if (_pointerData.pointerDrag != null)
+            var delta = position - pointerData.position;
+            UpdatePointerData(position);
+            pointerData.delta = delta;
+
+            if (pointerData.pointerDrag != null)
             {
-                ExecuteEvents.Execute(_pointerData.pointerDrag, _pointerData, ExecuteEvents.dragHandler);
+                ExecuteEvents.Execute(pointerData.pointerDrag, pointerData, ExecuteEvents.dragHandler);
             }
         }
 
         private void SimulateEndDrag(GameObject target, Vector2 position)
         {
-            UpdatePointerData(position);
-            _pointerData.dragging = false;
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
 
-            if (_pointerData.pointerDrag != null)
+            UpdatePointerData(position);
+            pointerData.dragging = false;
+
+            if (pointerData.pointerDrag != null)
             {
-                ExecuteEvents.Execute(_pointerData.pointerDrag, _pointerData, ExecuteEvents.endDragHandler);
+                ExecuteEvents.Execute(pointerData.pointerDrag, pointerData, ExecuteEvents.endDragHandler);
             }
 
             // Check for drop
@@ -204,24 +256,25 @@ namespace TestPlatform.SDK
                 var dropHandler = ExecuteEvents.GetEventHandler<IDropHandler>(dropTarget);
                 if (dropHandler != null)
                 {
-                    ExecuteEvents.Execute(dropHandler, _pointerData, ExecuteEvents.dropHandler);
+                    ExecuteEvents.Execute(dropHandler, pointerData, ExecuteEvents.dropHandler);
                 }
             }
 
-            _pointerData.pointerDrag = null;
+            pointerData.pointerDrag = null;
         }
 
         private void UpdatePointerData(Vector2 position)
         {
-            if (_pointerData == null) return;
+            var pointerData = GetPointerData();
+            if (pointerData == null) return;
 
-            _pointerData.position = position;
+            pointerData.position = position;
             _raycastResults.Clear();
-            EventSystem.current?.RaycastAll(_pointerData, _raycastResults);
+            EventSystem.current?.RaycastAll(pointerData, _raycastResults);
 
             if (_raycastResults.Count > 0)
             {
-                _pointerData.pointerCurrentRaycast = _raycastResults[0];
+                pointerData.pointerCurrentRaycast = _raycastResults[0];
             }
         }
     }
