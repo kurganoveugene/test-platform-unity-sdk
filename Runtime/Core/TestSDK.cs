@@ -206,13 +206,28 @@ namespace TestPlatform.SDK
                 var duration = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
                 Log($"Command executed successfully in {duration}ms: {payload.Command.Action}");
 
-                // Send result back
-                _connection?.Send(MessageTypes.CommandResult, new
+                // Send result back - include screenshot if it was a screenshot command
+                if (payload.Command.Action?.ToLower() == "screenshot" && ScreenshotCapture.LastScreenshot != null)
                 {
-                    status = "passed",
-                    action = payload.Command.Action,
-                    durationMs = duration
-                });
+                    var screenshotBase64 = Convert.ToBase64String(ScreenshotCapture.LastScreenshot);
+                    _connection?.Send(MessageTypes.CommandResult, new
+                    {
+                        status = "passed",
+                        action = payload.Command.Action,
+                        durationMs = duration,
+                        screenshot = screenshotBase64
+                    });
+                    ScreenshotCapture.Clear();
+                }
+                else
+                {
+                    _connection?.Send(MessageTypes.CommandResult, new
+                    {
+                        status = "passed",
+                        action = payload.Command.Action,
+                        durationMs = duration
+                    });
+                }
             }
             catch (Exception ex)
             {
