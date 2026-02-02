@@ -68,7 +68,8 @@ namespace TestPlatform.SDK
         private async Task ExecuteTap(Command command)
         {
             // If selector provided, try to click UI element directly first
-            if (command.Selector != null)
+            // Note: JsonUtility creates empty objects instead of null, so check for actual values
+            if (command.Selector != null && !string.IsNullOrEmpty(command.Selector.Value))
             {
                 var element = _locator.Find(command.Selector);
                 if (element == null)
