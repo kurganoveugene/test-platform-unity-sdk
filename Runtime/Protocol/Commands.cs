@@ -126,4 +126,49 @@ namespace TestPlatform.SDK
         public string SceneName => sceneName;
         public int Ms => ms;
     }
+
+    /// <summary>
+    /// Response containing all visible UI elements for LLM game state analysis.
+    /// </summary>
+    [Serializable]
+    public class GetElementsResponse
+    {
+        public string sceneName;
+        public int screenWidth;
+        public int screenHeight;
+        public ElementInfo[] elements;
+    }
+
+    /// <summary>
+    /// Information about a single UI element.
+    /// </summary>
+    [Serializable]
+    public class ElementInfo
+    {
+        public string name;
+        public string path;
+        public string type;
+        public string text;
+        public bool active;
+        public bool interactable;
+        public ElementBounds bounds;
+        public ElementScreenPosition screenPosition;
+        public string[] components;
+    }
+
+    [Serializable]
+    public class ElementBounds
+    {
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+    }
+
+    [Serializable]
+    public class ElementScreenPosition
+    {
+        public float x;
+        public float y;
+    }
 }
