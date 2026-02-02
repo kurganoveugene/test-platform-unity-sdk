@@ -439,8 +439,11 @@ namespace TestPlatform.SDK
             // Wait for end of frame to capture
             await Task.Yield();
 
-            var texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+            var width = Screen.width;
+            var height = Screen.height;
+
+            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+            texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
             texture.Apply();
 
             var bytes = texture.EncodeToPNG();
@@ -449,8 +452,10 @@ namespace TestPlatform.SDK
             // Store screenshot for sending back to server
             ScreenshotCapture.LastScreenshot = bytes;
             ScreenshotCapture.LastScreenshotName = name;
+            ScreenshotCapture.LastScreenshotWidth = width;
+            ScreenshotCapture.LastScreenshotHeight = height;
 
-            Debug.Log($"[TestPlatform] Screenshot captured: {name}");
+            Debug.Log($"[TestPlatform] Screenshot captured: {name} ({width}x{height})");
         }
 
         private void ExecuteSetSlider(Command command)
@@ -589,11 +594,14 @@ namespace TestPlatform.SDK
     {
         public static byte[] LastScreenshot { get; set; }
         public static string LastScreenshotName { get; set; }
+        public static int LastScreenshotWidth { get; set; }
+        public static int LastScreenshotHeight { get; set; }
 
         public static void Clear()
         {
             LastScreenshot = null;
             LastScreenshotName = null;
+            // Keep dimensions for coordinate conversion in subsequent commands
         }
     }
 

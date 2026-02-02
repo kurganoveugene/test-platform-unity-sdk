@@ -34,22 +34,46 @@ namespace TestPlatform.SDK
         }
 
         /// <summary>
-        /// Convert screen position from top-left origin (Vision AI) to bottom-left origin (Unity).
+        /// Convert Vision AI coordinates to Unity screen coordinates.
+        /// Vision AI: (0,0) at top-left, Y increases downward
+        /// Unity Screen: (0,0) at bottom-left, Y increases upward
         /// </summary>
         private Vector2 ConvertScreenPosition(Vector2 position)
         {
-            // Vision AI returns Y from top, Unity expects Y from bottom
-            return new Vector2(position.x, Screen.height - position.y);
+            // Get screenshot dimensions (set when screenshot was captured)
+            var screenshotWidth = ScreenshotCapture.LastScreenshotWidth;
+            var screenshotHeight = ScreenshotCapture.LastScreenshotHeight;
+
+            // If no screenshot dimensions stored, fall back to current screen dimensions
+            if (screenshotWidth <= 0 || screenshotHeight <= 0)
+            {
+                Debug.LogWarning("[TestPlatform] No screenshot dimensions stored, using current screen size for conversion");
+                screenshotWidth = Screen.width;
+                screenshotHeight = Screen.height;
+            }
+
+            // Scale coordinates if screen size differs from screenshot size
+            float scaleX = (float)Screen.width / screenshotWidth;
+            float scaleY = (float)Screen.height / screenshotHeight;
+
+            // Convert: scale and flip Y axis (Vision AI uses top-left origin, Unity uses bottom-left)
+            float unityX = position.x * scaleX;
+            float unityY = Screen.height - (position.y * scaleY);
+
+            Debug.Log($"[TestPlatform] Coordinate conversion: Vision({position.x}, {position.y}) -> Unity({unityX}, {unityY}) " +
+                      $"[Screenshot: {screenshotWidth}x{screenshotHeight}, Screen: {Screen.width}x{Screen.height}]");
+
+            return new Vector2(unityX, unityY);
         }
 
         /// <summary>
-        /// Simulate a tap at the given screen position.
+        /// Simulate a tap at the given screen position (Vision AI coordinates).
         /// </summary>
         public async Task Tap(Vector2 screenPosition)
         {
-            // Convert from top-left origin to bottom-left origin
+            // Convert Vision AI coordinates to Unity screen coordinates
             var unityPosition = ConvertScreenPosition(screenPosition);
-            Debug.Log($"[TestPlatform] Tap at {screenPosition} (Unity: {unityPosition})");
+            Debug.Log($"[TestPlatform] Tap at Vision({screenPosition.x}, {screenPosition.y}) -> Unity({unityPosition.x}, {unityPosition.y})");
 
             var target = GetTargetAtPosition(unityPosition);
             if (target != null)
