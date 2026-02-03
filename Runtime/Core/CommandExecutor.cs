@@ -436,16 +436,24 @@ namespace TestPlatform.SDK
         {
             var name = command.Name ?? $"screenshot_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
 
-            // Wait for end of frame to capture
-            await Task.Yield();
+            // Use ScreenCapture which handles timing correctly
+            // This captures at the end of the current frame automatically
+            var texture = ScreenCapture.CaptureScreenshotAsTexture();
 
-            var width = Screen.width;
-            var height = Screen.height;
+            if (texture == null)
+            {
+                // Fallback: wait a frame and try manual capture via RenderTexture
+                await Task.Delay(50);
+                texture = CaptureScreenViaRenderTexture();
+            }
 
-            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            texture.Apply();
+            if (texture == null)
+            {
+                throw new InvalidOperationException("Failed to capture screenshot");
+            }
 
+            var width = texture.width;
+            var height = texture.height;
             var bytes = texture.EncodeToPNG();
             UnityEngine.Object.Destroy(texture);
 
@@ -456,6 +464,46 @@ namespace TestPlatform.SDK
             ScreenshotCapture.LastScreenshotHeight = height;
 
             Debug.Log($"[TestPlatform] Screenshot captured: {name} ({width}x{height})");
+        }
+
+        /// <summary>
+        /// Fallback screenshot capture using RenderTexture from main camera.
+        /// </summary>
+        private Texture2D CaptureScreenViaRenderTexture()
+        {
+            var camera = Camera.main;
+            if (camera == null)
+            {
+                camera = Camera.current;
+            }
+            if (camera == null)
+            {
+                Debug.LogWarning("[TestPlatform] No camera found for screenshot fallback");
+                return null;
+            }
+
+            var width = Screen.width;
+            var height = Screen.height;
+
+            // Create a RenderTexture
+            var renderTexture = new RenderTexture(width, height, 24);
+            var previousTarget = camera.targetTexture;
+
+            camera.targetTexture = renderTexture;
+            camera.Render();
+
+            // Read pixels from RenderTexture
+            RenderTexture.active = renderTexture;
+            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+            texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            texture.Apply();
+
+            // Cleanup
+            camera.targetTexture = previousTarget;
+            RenderTexture.active = null;
+            UnityEngine.Object.Destroy(renderTexture);
+
+            return texture;
         }
 
         private void ExecuteSetSlider(Command command)
