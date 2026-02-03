@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -436,74 +437,26 @@ namespace TestPlatform.SDK
         {
             var name = command.Name ?? $"screenshot_{DateTime.UtcNow:yyyyMMdd_HHmmss}";
 
-            // Use ScreenCapture which handles timing correctly
-            // This captures at the end of the current frame automatically
-            var texture = ScreenCapture.CaptureScreenshotAsTexture();
-
-            if (texture == null)
+            // Use coroutine helper to capture at end of frame
+            var tcs = new TaskCompletionSource<byte[]>();
+            ScreenshotCoroutineRunner.Instance.CaptureScreenshot((bytes, width, height) =>
             {
-                // Fallback: wait a frame and try manual capture via RenderTexture
-                await Task.Delay(50);
-                texture = CaptureScreenViaRenderTexture();
-            }
+                if (bytes != null)
+                {
+                    ScreenshotCapture.LastScreenshot = bytes;
+                    ScreenshotCapture.LastScreenshotName = name;
+                    ScreenshotCapture.LastScreenshotWidth = width;
+                    ScreenshotCapture.LastScreenshotHeight = height;
+                    Debug.Log($"[TestPlatform] Screenshot captured: {name} ({width}x{height})");
+                    tcs.SetResult(bytes);
+                }
+                else
+                {
+                    tcs.SetException(new InvalidOperationException("Failed to capture screenshot"));
+                }
+            });
 
-            if (texture == null)
-            {
-                throw new InvalidOperationException("Failed to capture screenshot");
-            }
-
-            var width = texture.width;
-            var height = texture.height;
-            var bytes = texture.EncodeToPNG();
-            UnityEngine.Object.Destroy(texture);
-
-            // Store screenshot for sending back to server
-            ScreenshotCapture.LastScreenshot = bytes;
-            ScreenshotCapture.LastScreenshotName = name;
-            ScreenshotCapture.LastScreenshotWidth = width;
-            ScreenshotCapture.LastScreenshotHeight = height;
-
-            Debug.Log($"[TestPlatform] Screenshot captured: {name} ({width}x{height})");
-        }
-
-        /// <summary>
-        /// Fallback screenshot capture using RenderTexture from main camera.
-        /// </summary>
-        private Texture2D CaptureScreenViaRenderTexture()
-        {
-            var camera = Camera.main;
-            if (camera == null)
-            {
-                camera = Camera.current;
-            }
-            if (camera == null)
-            {
-                Debug.LogWarning("[TestPlatform] No camera found for screenshot fallback");
-                return null;
-            }
-
-            var width = Screen.width;
-            var height = Screen.height;
-
-            // Create a RenderTexture
-            var renderTexture = new RenderTexture(width, height, 24);
-            var previousTarget = camera.targetTexture;
-
-            camera.targetTexture = renderTexture;
-            camera.Render();
-
-            // Read pixels from RenderTexture
-            RenderTexture.active = renderTexture;
-            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
-            texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            texture.Apply();
-
-            // Cleanup
-            camera.targetTexture = previousTarget;
-            RenderTexture.active = null;
-            UnityEngine.Object.Destroy(renderTexture);
-
-            return texture;
+            await tcs.Task;
         }
 
         private void ExecuteSetSlider(Command command)
@@ -673,5 +626,58 @@ namespace TestPlatform.SDK
     public class AssertionFailedException : Exception
     {
         public AssertionFailedException(string message) : base(message) { }
+    }
+
+    /// <summary>
+    /// Helper MonoBehaviour to run screenshot coroutine with WaitForEndOfFrame.
+    /// </summary>
+    public class ScreenshotCoroutineRunner : MonoBehaviour
+    {
+        private static ScreenshotCoroutineRunner _instance;
+
+        public static ScreenshotCoroutineRunner Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    var go = new GameObject("[TestPlatform] ScreenshotRunner");
+                    _instance = go.AddComponent<ScreenshotCoroutineRunner>();
+                    DontDestroyOnLoad(go);
+                }
+                return _instance;
+            }
+        }
+
+        public void CaptureScreenshot(Action<byte[], int, int> callback)
+        {
+            StartCoroutine(CaptureScreenshotCoroutine(callback));
+        }
+
+        private IEnumerator CaptureScreenshotCoroutine(Action<byte[], int, int> callback)
+        {
+            // MUST wait for end of frame before ReadPixels
+            yield return new WaitForEndOfFrame();
+
+            try
+            {
+                var width = Screen.width;
+                var height = Screen.height;
+
+                var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+                texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                texture.Apply();
+
+                var bytes = texture.EncodeToPNG();
+                Destroy(texture);
+
+                callback?.Invoke(bytes, width, height);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[TestPlatform] Screenshot capture failed: {ex.Message}");
+                callback?.Invoke(null, 0, 0);
+            }
+        }
     }
 }
